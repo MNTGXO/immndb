@@ -1,242 +1,155 @@
-# Movie Download Website (Backend + Frontend)
+# Advanced Movie Website + Telegram Admin Bot
 
-This repo is now a **full movie downloading website stack**:
-
-- **Backend API** (FastAPI) for movie list/search/details and Telegram admin ingestion.
-- **Frontend website** (static, animated) for users to browse and open direct links.
-- **Split hosting support**: backend on Koyeb/Render/Railway/Heroku/VPS, frontend on Vercel.
-
----
-
-## 1) Core Features
-
-- Admin-only Telegram bot (`BOT_ADMIN_IDS`) can add movies with direct link.
-- `/add <download_url> <title> [year] [lang] [thumbnail_url]` flow.
-- Bot shows candidate IMDb matches; admin chooses the correct one.
-- Website auto-updates because movies are stored in DB and served via API.
-- Frontend features:
-  - animated cards and background
-  - search bar
-  - language filter
-  - year filter
-  - details modal
-  - direct download button
+This project is now an advanced **movie downloading website** with:
+- animated frontend website
+- FastAPI backend
+- Telegram admin bot workflow to upload/edit/publish movies
+- MongoDB support with SQLite fallback
+- metadata source choice: API mode (OMDb) or package mode (`immndb`)
 
 ---
 
-## 2) Data source mode (API OR package)
-
-You can choose movie metadata source:
-
-### A) `DATA_PROVIDER=package` (default)
-Uses local Python package `immndb` (scraping-based).
-
-### B) `DATA_PROVIDER=api`
-Uses **OMDb API** directly (not package), requires `OMDB_API_KEY`.
-
-Env:
+## Required Environment Variables
 
 ```bash
-export DATA_PROVIDER=api
-export OMDB_API_KEY=your_omdb_key
+BOT_TOKEN=<telegram bot token>
+BOT_ADMIN_IDS=123456789,987654321
+FRONTEND_ORIGIN=*
+
+# optional
+MONGO_URI=<mongodb uri>
+MONGO_DB_NAME=moviehub
+DATA_PROVIDER=api          # api or package
+OMDB_API_KEY=<omdb key>    # required if DATA_PROVIDER=api
 ```
 
-If API key is missing, backend automatically falls back to package mode.
-
 ---
 
-## 3) Database mode (Mongo first, SQLite fallback)
+## Your requested bot flow (implemented)
 
-### A) MongoDB (preferred)
-If `MONGO_URI` is set, backend uses MongoDB.
-
+### 1) Add movie
+Use:
 ```bash
-export MONGO_URI="mongodb+srv://user:pass@cluster.mongodb.net/?retryWrites=true&w=majority"
-export MONGO_DB_NAME="moviehub"
+/addmovie <movie name>
 ```
 
-### B) SQLite fallback
-If `MONGO_URI` is not set, backend uses `movies.db` SQLite automatically.
+Bot replies with IMDb results (buttons). You select one.
+
+### 2) Upload links + thumbnail
+After selection, bot creates a **draft** and asks you to send a **photo** with caption like:
+```text
+{Download url}|{language}|{quality}|;{2nd Download url}|{language}|{2nd quality}|
+```
+- supports multiple lines and `;` separated links
+- creates a **special id** (e.g. `MVAB12CD34`)
+
+### 3) Confirm/publish
+```bash
+/publish <special_id>
+```
+Movie becomes visible on website.
 
 ---
 
-## 4) Local run (Terminal / Linux / macOS / Windows WSL)
+## Advanced bot commands
+
+- `/start` → show admin command help
+- `/addmovie <movie name>` → create draft from IMDb match
+- `/editmovie <special_id>` → open inline edit actions (title/lang/thumbnail/links)
+- `/addlink <special_id> <url>|<language>|<quality>|` → append link(s)
+- `/publish <special_id>` → publish to website
+- `/unpublish <special_id>` → hide from website (back to draft)
+- `/deletemovie <special_id>` → remove movie
+- `/listmovies` → list latest movies + statuses
+
+---
+
+## Website behavior
+
+- search movies instantly
+- language filter
+- advanced animated cards + modal
+- each movie page/modal shows all download links with language + quality
+- thumbnails support Telegram-uploaded images via backend media endpoint
+
+---
+
+## API Endpoints
+
+- `GET /health`
+- `GET /api/movies?search=&lang=&page=&page_size=`
+- `GET /api/movies/{special_id}` (published only)
+- `GET /api/meta/languages`
+- `GET /api/media/{telegram_file_id}`
+
+---
+
+## DB behavior
+
+- If `MONGO_URI` is set → uses MongoDB
+- Else → uses SQLite (`movies.db`)
+
+---
+
+## Metadata source behavior
+
+- `DATA_PROVIDER=api` + `OMDB_API_KEY` → OMDb API
+- Else → `immndb` package scraping mode
+
+---
+
+## Run locally (terminal)
 
 ```bash
-git clone <your-repo-url>
+git clone <repo>
 cd immndb
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 pip install -r requirements-web.txt
-```
 
-Set env:
-
-```bash
-export BOT_TOKEN="<telegram_bot_token>"
-export BOT_ADMIN_IDS="12345678,87654321"
-export FRONTEND_ORIGIN="*"
-# optional:
-# export MONGO_URI="..."
-# export DATA_PROVIDER="api"
-# export OMDB_API_KEY="..."
-```
-
-Run backend:
-
-```bash
+export BOT_TOKEN="..."
+export BOT_ADMIN_IDS="123...,456..."
 uvicorn backend_app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Run frontend static server:
-
+Run frontend:
 ```bash
 python -m http.server 5173
 ```
-
-Open: `http://localhost:5173/frontend/`
-
-Set backend URL in `frontend/config.js`.
+Open `http://localhost:5173/frontend/`.
+Set `frontend/config.js` to your backend URL.
 
 ---
 
-## 5) Termux deployment (Android)
+## Deploy support
 
-```bash
-pkg update && pkg upgrade -y
-pkg install git python -y
-git clone <your-repo-url>
-cd immndb
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-pip install -r requirements-web.txt
-```
+### Koyeb
+- install: `pip install -e . -r requirements-web.txt`
+- run: `uvicorn backend_app:app --host 0.0.0.0 --port 8000`
+- use `koyeb.yaml`
 
-Then same env vars + run uvicorn:
+### Render
+- use `render.yaml`
 
-```bash
-uvicorn backend_app:app --host 0.0.0.0 --port 8000
-```
+### Railway
+- use `railway.json`
 
-Use a tunnel (Cloudflare Tunnel/ngrok) if you need public URL.
+### Heroku
+- use `Procfile`
 
----
+### Vercel (frontend)
+- use `vercel.json`
+- set backend URL in `frontend/config.js`
 
-## 6) Koyeb deployment (backend)
+### VPS
+- run uvicorn with systemd + nginx reverse proxy
 
-1. Push repo to GitHub.
-2. In Koyeb: **Create App → GitHub**.
-3. Select service root and set install command:
-   - `pip install -e . -r requirements-web.txt`
-4. Run command:
-   - `uvicorn backend_app:app --host 0.0.0.0 --port 8000`
-5. Add env vars:
-   - `BOT_TOKEN`, `BOT_ADMIN_IDS`, `FRONTEND_ORIGIN`
-   - optional `MONGO_URI`, `MONGO_DB_NAME`, `DATA_PROVIDER`, `OMDB_API_KEY`
-
-`koyeb.yaml` is included for infra-as-code deployment.
+### Termux
+- install python/git, then same local run steps
 
 ---
 
-## 7) Render deployment (backend)
+## Legal note
 
-1. New **Web Service** from repo.
-2. Build command:
-   - `pip install -e . -r requirements-web.txt`
-3. Start command:
-   - `uvicorn backend_app:app --host 0.0.0.0 --port $PORT`
-4. Add same env vars.
-
----
-
-## 8) Railway deployment (backend)
-
-1. `railway init` and connect repo.
-2. Set start command:
-   - `uvicorn backend_app:app --host 0.0.0.0 --port $PORT`
-3. Add environment variables in Railway dashboard.
-4. Deploy with:
-
-```bash
-railway up
-```
-
----
-
-## 9) Heroku deployment (backend)
-
-`Procfile` included.
-
-```bash
-heroku create <app-name>
-heroku config:set BOT_TOKEN=... BOT_ADMIN_IDS=... FRONTEND_ORIGIN=...
-# optional
-heroku config:set MONGO_URI=... MONGO_DB_NAME=moviehub DATA_PROVIDER=api OMDB_API_KEY=...
-git push heroku main
-```
-
----
-
-## 10) VPS deployment (backend)
-
-On Ubuntu VPS:
-
-```bash
-sudo apt update
-sudo apt install -y git python3 python3-venv nginx
-
-git clone <your-repo-url>
-cd immndb
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-pip install -r requirements-web.txt
-```
-
-Create systemd service for uvicorn (recommended), then reverse proxy with Nginx to port 8000.
-
----
-
-## 11) Vercel deployment (frontend)
-
-1. Import repo in Vercel.
-2. Keep frontend files in `frontend/`.
-3. `vercel.json` rewrites all routes to `frontend/index.html`.
-4. Update `frontend/config.js`:
-
-```js
-window.APP_CONFIG = {
-  API_BASE_URL: "https://your-backend-domain.example.com",
-};
-```
-
-Deploy.
-
----
-
-## 12) Telegram bot usage
-
-Use:
-
-```bash
-/add https://your-link/movie.mkv kgf 2 2022 malayalam https://image-url/poster.jpg
-```
-
-Then tap the correct movie from returned candidate buttons.
-
----
-
-## 13) API Endpoints
-
-- `GET /health`
-- `GET /api/movies?search=&lang=&year=&page=&page_size=`
-- `GET /api/movies/{movie_id}`
-- `GET /api/meta/languages`
-
----
-
-## 14) Important note
-
-Only add legal content and direct links that you are authorized to distribute.
+Only upload and distribute movies/content you are legally authorized to share.
