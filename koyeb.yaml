@@ -1,0 +1,19 @@
+name: moviehub-api
+services:
+  - name: backend
+    type: web
+    env: python
+    instance_type: nano
+    ports:
+      - port: 8000
+        protocol: http
+    routes:
+      - path: /
+    run_command: uvicorn backend_app:app --host 0.0.0.0 --port 8000
+    env_vars:
+      - key: BOT_TOKEN
+        value: ""
+      - key: BOT_ADMIN_IDS
+        value: ""
+      - key: FRONTEND_ORIGIN
+        value: "*"
