@@ -110,7 +110,7 @@ pip install -r requirements-web.txt
 
 export BOT_TOKEN="..."
 export BOT_ADMIN_IDS="123...,456..."
-uvicorn backend_app:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn backend_app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Run frontend:
@@ -124,9 +124,11 @@ Set `frontend/config.js` to your backend URL.
 
 ## Deploy support
 
+> Deployment fix: if your platform says `uvicorn: command not found`, use `python -m uvicorn ...` and ensure it installs from `requirements.txt` (included).
+
 ### Koyeb
 - install: `pip install -e . -r requirements-web.txt`
-- run: `uvicorn backend_app:app --host 0.0.0.0 --port 8000`
+- run: `python -m uvicorn backend_app:app --host 0.0.0.0 --port 8000`
 - use `koyeb.yaml`
 
 ### Render
