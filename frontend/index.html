@@ -10,11 +10,11 @@
     <div class="bg-glow"></div>
     <header class="hero">
       <h1>🎬 MovieHub</h1>
-      <p>Direct movie links with smart search, language filters, and smooth animations.</p>
+      <p>Search movies and open the movie page for full download links.</p>
     </header>
 
     <section class="controls">
-      <input id="search" type="text" placeholder="Search movie name..." />
+      <input id="search" type="text" placeholder="Search movie title..." />
       <select id="langFilter"><option value="">All Languages</option></select>
       <input id="yearFilter" type="number" placeholder="Year" min="1900" max="2100" />
       <button id="refreshBtn">Refresh</button>
@@ -25,13 +25,6 @@
     </section>
 
     <main id="grid" class="movie-grid"></main>
-
-    <div id="modal" class="modal hidden">
-      <div class="modal-content">
-        <button id="closeModal" class="close">✖</button>
-        <div id="modalBody"></div>
-      </div>
-    </div>
 
     <script src="/assets/config.js"></script>
     <script src="/assets/app.js"></script>
