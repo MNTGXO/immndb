@@ -181,3 +181,7 @@ Now fixed:
 - `frontend/config.js` -> `API_BASE_URL`:
   - empty = same domain
   - set URL = separate frontend/backend domains
+
+
+### Search reliability note
+If `/addmovie` returns no result from primary search, backend now automatically retries using IMDb suggestion API fallback (helps for short queries like `kgf`).

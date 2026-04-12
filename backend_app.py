@@ -73,6 +73,29 @@ def parse_links(text: str) -> list[dict[str, str]]:
     return links
 
 
+
+
+def imdb_suggestion_search(query: str, limit: int = 8) -> list[dict[str, Any]]:
+    q = query.strip().lower()
+    if not q:
+        return []
+    first = q[0]
+    url = f"https://v3.sg.media-imdb.com/suggestion/{first}/{requests.utils.quote(q)}.json"
+    try:
+        r = requests.get(url, timeout=15)
+        data = r.json()
+    except Exception:
+        return []
+    items = []
+    for row in data.get("d", []):
+        imdb_id = row.get("id")
+        title = row.get("l")
+        year = row.get("y")
+        if imdb_id and title and str(imdb_id).startswith("tt"):
+            items.append({"imdb_id": imdb_id, "title": title, "year": year})
+        if len(items) >= limit:
+            break
+    return items
 class Provider:
     def search(self, q: str) -> list[dict[str, Any]]: ...
     def details(self, imdb_id: str) -> dict[str, Any]: ...
@@ -102,7 +125,9 @@ class PackageProvider(Provider):
                 out.append({"imdb_id": x.mn_imdb_id, "title": x.mn_title, "year": x.mn_year})
                 if len(out) >= 8:
                     return out
-        return out
+        if out:
+            return out
+        return imdb_suggestion_search(q, limit=8)
 
     def details(self, imdb_id: str) -> dict[str, Any]:
         d = self.c.mn_get_movie_details(imdb_id)
