@@ -49,7 +49,7 @@ BOT_ADMIN_IDS = {int(x) for x in os.getenv("BOT_ADMIN_IDS", "").split(",") if x.
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "*")
 DATA_PROVIDER = os.getenv("DATA_PROVIDER", "package").lower()  # package|api
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "")
-ENABLE_BOT_POLLING = os.getenv("ENABLE_BOT_POLLING", "0").lower() in {"1", "true", "yes"}
+ENABLE_BOT_POLLING = os.getenv("ENABLE_BOT_POLLING", "1").lower() in {"1", "true", "yes"}
 FRONTEND_PUBLIC_URL = os.getenv("FRONTEND_PUBLIC_URL", "").strip()
 EMBED_FRONTEND = os.getenv("EMBED_FRONTEND", "1").lower() in {"1", "true", "yes"}
 
@@ -324,6 +324,17 @@ AWAITING: dict[int, dict[str, str]] = {}
 telegram_app: Application | None = None
 
 
+
+
+async def ensure_admin(update: Update) -> bool:
+    if update.effective_user is None or update.message is None:
+        return False
+    if update.effective_user.id not in BOT_ADMIN_IDS:
+        await update.message.reply_text("Access denied. Add your Telegram user id to BOT_ADMIN_IDS.")
+        return False
+    return True
+
+
 class MovieOut(BaseModel):
     special_id: str
     imdb_id: str | None = None
@@ -341,10 +352,7 @@ class MovieOut(BaseModel):
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user is None or update.message is None:
-        return
-    if update.effective_user.id not in BOT_ADMIN_IDS:
-        await update.message.reply_text("Unauthorized.")
+    if not await ensure_admin(update):
         return
     await update.message.reply_text(
         "Admin commands:\n"
@@ -354,9 +362,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_addmovie(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user is None or update.message is None:
-        return
-    if update.effective_user.id not in BOT_ADMIN_IDS:
+    if not await ensure_admin(update):
         return
     q = " ".join(context.args).strip()
     if not q:
@@ -424,9 +430,7 @@ async def cmd_unpublish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def _set_status(update: Update, context: ContextTypes.DEFAULT_TYPE, status: str) -> None:
-    if update.effective_user is None or update.message is None:
-        return
-    if update.effective_user.id not in BOT_ADMIN_IDS:
+    if not await ensure_admin(update):
         return
     if not context.args:
         await update.message.reply_text(f"Usage: /{'publish' if status == 'published' else 'unpublish'} <special_id>")
@@ -437,9 +441,9 @@ async def _set_status(update: Update, context: ContextTypes.DEFAULT_TYPE, status
 
 
 async def cmd_addlink(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user is None or update.message is None:
+    if not await ensure_admin(update):
         return
-    if update.effective_user.id not in BOT_ADMIN_IDS or len(context.args) < 2:
+    if len(context.args) < 2:
         await update.message.reply_text("Usage: /addlink <special_id> <url>|<language>|<quality>|")
         return
     sid = context.args[0]
@@ -457,9 +461,9 @@ async def cmd_addlink(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def cmd_editmovie(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user is None or update.message is None:
+    if not await ensure_admin(update):
         return
-    if update.effective_user.id not in BOT_ADMIN_IDS or not context.args:
+    if not context.args:
         await update.message.reply_text("Usage: /editmovie <special_id>")
         return
     sid = context.args[0]
@@ -510,9 +514,9 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user is None or update.message is None:
+    if not await ensure_admin(update):
         return
-    if update.effective_user.id not in BOT_ADMIN_IDS or not context.args:
+    if not context.args:
         await update.message.reply_text("Usage: /deletemovie <special_id>")
         return
     ok = STORE.delete(context.args[0])
@@ -520,9 +524,7 @@ async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def cmd_listmovies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user is None or update.message is None:
-        return
-    if update.effective_user.id not in BOT_ADMIN_IDS:
+    if not await ensure_admin(update):
         return
     _, items = STORE.list(None, None, 1, 20, True)
     txt = "\n".join([f"{m['special_id']} | {m['title']} | {m.get('status')}" for m in items]) or "No movies"

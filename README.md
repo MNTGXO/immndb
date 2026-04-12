@@ -21,7 +21,7 @@ MONGO_URI=<mongodb uri>
 MONGO_DB_NAME=moviehub
 DATA_PROVIDER=api          # api or package
 OMDB_API_KEY=<omdb key>    # required if DATA_PROVIDER=api
-ENABLE_BOT_POLLING=1       # enable only on one instance
+ENABLE_BOT_POLLING=1       # default is ON; set 0 on extra instances
 ```
 
 ---
