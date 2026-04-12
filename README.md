@@ -110,7 +110,7 @@ pip install -r requirements-web.txt
 
 export BOT_TOKEN="..."
 export BOT_ADMIN_IDS="123...,456..."
-python -m uvicorn backend_app:app --host 0.0.0.0 --port 8000 --reload
+PYTHONPATH=src python -m uvicorn backend_app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Run frontend:
@@ -128,7 +128,7 @@ Set `frontend/config.js` to your backend URL.
 
 ### Koyeb
 - install: `pip install -e . -r requirements-web.txt`
-- run: `python -m uvicorn backend_app:app --host 0.0.0.0 --port 8000`
+- run: `PYTHONPATH=src python -m uvicorn backend_app:app --host 0.0.0.0 --port 8000`
 - use `koyeb.yaml`
 
 ### Render
@@ -155,3 +155,6 @@ Set `frontend/config.js` to your backend URL.
 ## Legal note
 
 Only upload and distribute movies/content you are legally authorized to share.
+
+
+If `immndb` is not installed as package yet, this repo still works by exporting `PYTHONPATH=src` (already applied in deploy manifests).

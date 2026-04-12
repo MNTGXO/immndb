@@ -6,6 +6,7 @@ import random
 import re
 import sqlite3
 import string
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 from io import BytesIO
@@ -28,7 +29,15 @@ from telegram.ext import (
     filters,
 )
 
-from immndb import IMDbClient
+ROOT_DIR = Path(__file__).resolve().parent
+SRC_DIR = ROOT_DIR / "src"
+if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+try:
+    from immndb import IMDbClient
+except Exception:
+    IMDbClient = None  # type: ignore
 
 DB_PATH = Path(os.getenv("DB_PATH", "movies.db"))
 MONGO_URI = os.getenv("MONGO_URI", "")
@@ -66,6 +75,8 @@ class Provider:
 
 class PackageProvider(Provider):
     def __init__(self) -> None:
+        if IMDbClient is None:
+            raise RuntimeError("immndb is not importable. Set PYTHONPATH=src or use DATA_PROVIDER=api with OMDB_API_KEY.")
         self.c = IMDbClient()
 
     def search(self, q: str) -> list[dict[str, Any]]:
@@ -275,7 +286,16 @@ class MongoStore(Store):
         return self.col.delete_one({"special_id": special_id}).deleted_count > 0
 
 
-PROVIDER: Provider = OmdbProvider() if DATA_PROVIDER == "api" and OMDB_API_KEY else PackageProvider()
+if DATA_PROVIDER == "api" and OMDB_API_KEY:
+    PROVIDER: Provider = OmdbProvider()
+else:
+    try:
+        PROVIDER = PackageProvider()
+    except Exception:
+        if OMDB_API_KEY:
+            PROVIDER = OmdbProvider()
+        else:
+            raise
 STORE: Store = MongoStore() if MONGO_URI else SQLiteStore()
 PENDING_PICK: dict[str, dict[str, Any]] = {}
 AWAITING: dict[int, dict[str, str]] = {}
