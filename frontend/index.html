@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CineStream OTT</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="page-bg"></div>
+    <header class="topbar">
+      <div class="brand">CineStream</div>
+      <div class="search-wrap">
+        <input id="search" type="text" placeholder="Search movies, e.g. KGF, Lucifer, Premalu..." />
+      </div>
+      <div class="actions-right">
+        <select id="langFilter"><option value="">All Languages</option></select>
+        <input id="yearFilter" type="number" placeholder="Year" min="1900" max="2100" />
+      </div>
+    </header>
+
+    <section id="hero" class="hero"></section>
+
+    <main class="container">
+      <section>
+        <div class="section-head">
+          <h2>Search Results</h2>
+          <span id="movieCount">0 titles</span>
+        </div>
+        <div id="grid" class="movie-grid"></div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>Latest Uploads</h2></div>
+        <div id="latestRail" class="rail"></div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>Language Collections</h2></div>
+        <div id="langBlocks" class="lang-blocks"></div>
+      </section>
+    </main>
+
+    <script src="/assets/config.js"></script>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
