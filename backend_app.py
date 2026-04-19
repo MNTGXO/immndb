@@ -51,6 +51,7 @@ DATA_PROVIDER = os.getenv("DATA_PROVIDER", "package").lower()  # package|api
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "")
 ENABLE_BOT_POLLING = os.getenv("ENABLE_BOT_POLLING", "1").lower() in {"1", "true", "yes"}
 FRONTEND_PUBLIC_URL = os.getenv("FRONTEND_PUBLIC_URL", "").strip()
+BACKEND_PUBLIC_URL = os.getenv("BACKEND_PUBLIC_URL", "").strip()
 EMBED_FRONTEND = os.getenv("EMBED_FRONTEND", "1").lower() in {"1", "true", "yes"}
 
 
@@ -60,6 +61,13 @@ def now_iso() -> str:
 
 def rand_id(prefix: str = "MV", size: int = 8) -> str:
     return f"{prefix}{''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(size))}"
+
+
+def movie_public_url(special_id: str) -> str:
+    base = FRONTEND_PUBLIC_URL or BACKEND_PUBLIC_URL
+    if not base:
+        return f"/assets/movie.html?id={special_id}"
+    return f"{base.rstrip('/')}/assets/movie.html?id={special_id}"
 
 
 def normalize_text(value: str) -> str:
@@ -268,7 +276,7 @@ class SQLiteStore(Store):
         where = []
         params = []
         if not include_unpublished:
-            where.append("status IN ('published','pending')")
+            where.append("status != 'deleted'")
         if search:
             where.append("LOWER(title) LIKE ?")
             params.append(f"%{search.lower()}%")
@@ -324,7 +332,7 @@ class MongoStore(Store):
     def list(self, search: str | None, lang: str | None, page: int, page_size: int, include_unpublished: bool) -> tuple[int, list[dict[str, Any]]]:
         q: dict[str, Any] = {}
         if not include_unpublished:
-            q["status"] = {"$in": ["published", "pending"]}
+            q["status"] = {"$ne": "deleted"}
         if search:
             q["title"] = {"$regex": re.escape(search), "$options": "i"}
         if lang:
@@ -475,7 +483,7 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     AWAITING.pop(update.effective_user.id, None)
     await update.message.reply_text(f"Saved movie {special_id} and published it. Use /unpublish {special_id} if needed.")
     if movie:
-        await update.message.reply_text(f"Special ID: {movie['special_id']}")
+        await update.message.reply_text(f"Special ID: {movie['special_id']}\nWeb URL: {movie_public_url(movie['special_id'])}")
 
 
 async def cmd_publish(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -494,7 +502,13 @@ async def _set_status(update: Update, context: ContextTypes.DEFAULT_TYPE, status
         return
     sid = context.args[0]
     m = STORE.update(sid, {"status": status})
-    await update.message.reply_text("Done" if m else "Not found")
+    if not m:
+        await update.message.reply_text("Not found")
+        return
+    msg = "Done"
+    if status == "published":
+        msg += f"\nWeb URL: {movie_public_url(sid)}"
+    await update.message.reply_text(msg)
 
 
 async def cmd_addlink(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -671,8 +685,6 @@ def api_get_movie(special_id: str):
     m = STORE.get(special_id)
     if not m:
         raise HTTPException(404, "Movie not found")
-    if m.get("status") not in {"published", "pending"}:
-        raise HTTPException(403, "Movie not published")
     return m
 
 

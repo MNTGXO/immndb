@@ -79,7 +79,7 @@ Movie becomes visible on website.
 
 - `GET /health`
 - `GET /api/movies?search=&lang=&page=&page_size=`
-- `GET /api/movies/{special_id}` (published/pending)
+- `GET /api/movies/{special_id}`
 - `GET /api/meta/languages`
 - `GET /api/media/{telegram_file_id}`
 
@@ -178,6 +178,7 @@ Now fixed:
 ### Frontend path/domain variables
 - `EMBED_FRONTEND=1` → serve frontend from same backend domain.
 - `FRONTEND_PUBLIC_URL` (optional) → external frontend URL metadata.
+- `BACKEND_PUBLIC_URL` (optional) → backend public domain used for bot reply links when frontend is embedded on same app.
 - `frontend/config.js` -> `API_BASE_URL`:
   - empty = same domain
   - set URL = separate frontend/backend domains
