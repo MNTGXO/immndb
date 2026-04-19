@@ -26,6 +26,12 @@ const thumbSrc = (m) => {
   return m.thumbnail;
 };
 
+const safeTitle = (m) => {
+  const t = (m?.title || "").trim();
+  if (!t || /^tt\d{5,}$/i.test(t)) return "Untitled Movie";
+  return t;
+};
+
 function similarity(title, q) {
   if (!q) return 1;
   const t = normalize(title);
@@ -40,9 +46,9 @@ function card(movie, compact = false) {
   const genre = (movie.genres || []).slice(0, 2).join(" • ");
   return `
     <article class="poster ${compact ? "compact" : ""}" data-id="${movie.special_id}">
-      <img src="${thumbSrc(movie)}" alt="${movie.title || "Movie"}" loading="lazy" />
+      <img src="${thumbSrc(movie)}" alt="${safeTitle(movie)}" loading="lazy" />
       <div class="overlay">
-        <h3>${movie.title || "Untitled"}</h3>
+        <h3>${safeTitle(movie)}</h3>
         <p>${movie.year || ""}${movie.lang ? ` • ${movie.lang.toUpperCase()}` : ""}</p>
         ${genre ? `<small>${genre}</small>` : ""}
       </div>
@@ -69,7 +75,7 @@ function renderHero(movie) {
       <img src="${thumbSrc(movie)}" alt="${movie.title || "Movie"}" />
       <div>
         <span class="chip">Featured</span>
-        <h1>${movie.title || "Untitled"}</h1>
+        <h1>${safeTitle(movie)}</h1>
         <p>${movie.storyline || "Browse all latest uploads and language collections."}</p>
         <a class="cta" href="/assets/movie.html?id=${encodeURIComponent(movie.special_id)}">Watch Download Options</a>
       </div>

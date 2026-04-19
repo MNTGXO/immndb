@@ -43,6 +43,7 @@ except Exception:
 
 DB_PATH = Path(os.getenv("DB_PATH", "movies.db"))
 MONGO_URI = os.getenv("MONGO_URI", "")
+MONGO_URIS = [x.strip() for x in os.getenv("MONGO_URIS", "").split(",") if x.strip()]
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "moviehub")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 BOT_ADMIN_IDS = {int(x) for x in os.getenv("BOT_ADMIN_IDS", "").split(",") if x.strip().isdigit()}
@@ -68,6 +69,17 @@ def movie_public_url(special_id: str) -> str:
     if not base:
         return f"/assets/movie.html?id={special_id}"
     return f"{base.rstrip('/')}/assets/movie.html?id={special_id}"
+
+
+def clean_title(title: str | None, imdb_id: str | None = None) -> str | None:
+    value = (title or "").strip()
+    if not value:
+        return None
+    if re.fullmatch(r"tt\d{5,}", value.lower()):
+        return None
+    if imdb_id and value.strip().lower() == imdb_id.strip().lower():
+        return None
+    return value
 
 
 def normalize_text(value: str) -> str:
@@ -304,8 +316,9 @@ class SQLiteStore(Store):
 
 
 class MongoStore(Store):
-    def __init__(self) -> None:
-        c = MongoClient(MONGO_URI)
+    def __init__(self, uri: str) -> None:
+        c = MongoClient(uri, serverSelectionTimeoutMS=2500)
+        c.admin.command("ping")
         self.col = c[MONGO_DB_NAME]["movies"]
         self.col.create_index("special_id", unique=True)
 
@@ -355,7 +368,22 @@ else:
             PROVIDER = OmdbProvider()
         else:
             raise
-STORE: Store = MongoStore() if MONGO_URI else SQLiteStore()
+SELECTED_STORAGE = "sqlite"
+def _build_store() -> Store:
+    global SELECTED_STORAGE
+    mongo_candidates = [*MONGO_URIS, *([MONGO_URI] if MONGO_URI else [])]
+    for uri in mongo_candidates:
+        try:
+            store = MongoStore(uri)
+            SELECTED_STORAGE = "mongo"
+            return store
+        except Exception:
+            continue
+    SELECTED_STORAGE = "sqlite"
+    return SQLiteStore()
+
+
+STORE: Store = _build_store()
 PENDING_PICK: dict[str, dict[str, Any]] = {}
 AWAITING: dict[int, dict[str, str]] = {}
 telegram_app: Application | None = None
@@ -413,7 +441,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Admin commands:\n"
         "/addmovie <movie name>\n/editmovie <special_id>\n/addlink <special_id> <url>|<lang>|<quality>|\n"
-        "/publish <special_id>\n/unpublish <special_id>\n/deletemovie <special_id>\n/listmovies"
+        "/publish <special_id>\n/unpublish <special_id>\n/deletemovie <special_id>\n/listmovies\n"
+        "/dbstats\n/stats"
     )
 
 
@@ -453,7 +482,10 @@ async def on_picknew(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if not p or q.from_user.id != p["admin_id"]:
         await q.edit_message_text("Request expired")
         return
+    picked = next((x for x in p["results"] if x.get("imdb_id") == imdb_id), {})
     d = PROVIDER.details(imdb_id)
+    d["title"] = clean_title(d.get("title"), imdb_id) or picked.get("title") or d.get("title") or imdb_id
+    d["year"] = d.get("year") or picked.get("year")
     movie = STORE.create_draft(d)
     AWAITING[q.from_user.id] = {"mode": "await_photo_links", "special_id": movie["special_id"]}
     await q.edit_message_text(
@@ -602,6 +634,29 @@ async def cmd_listmovies(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(txt)
 
 
+async def cmd_dbstats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await ensure_admin(update):
+        return
+    _, items = STORE.list(None, None, 1, 1000, True)
+    by_status: dict[str, int] = {}
+    by_lang: dict[str, int] = {}
+    for m in items:
+        st = (m.get("status") or "unknown").lower()
+        by_status[st] = by_status.get(st, 0) + 1
+        lg = (m.get("lang") or "other").lower()
+        by_lang[lg] = by_lang.get(lg, 0) + 1
+    top_lang = sorted(by_lang.items(), key=lambda x: x[1], reverse=True)[:8]
+    status_txt = ", ".join([f"{k}:{v}" for k, v in sorted(by_status.items())]) or "none"
+    lang_txt = ", ".join([f"{k}:{v}" for k, v in top_lang]) or "none"
+    await update.message.reply_text(
+        f"Storage: {SELECTED_STORAGE}\nTotal movies: {len(items)}\nStatus: {status_txt}\nTop languages: {lang_txt}"
+    )
+
+
+async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await cmd_dbstats(update, context)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global telegram_app
@@ -615,6 +670,8 @@ async def lifespan(app: FastAPI):
         telegram_app.add_handler(CommandHandler("unpublish", cmd_unpublish))
         telegram_app.add_handler(CommandHandler("deletemovie", cmd_delete))
         telegram_app.add_handler(CommandHandler("listmovies", cmd_listmovies))
+        telegram_app.add_handler(CommandHandler("dbstats", cmd_dbstats))
+        telegram_app.add_handler(CommandHandler("stats", cmd_stats))
         telegram_app.add_handler(CallbackQueryHandler(on_picknew, pattern=r"^picknew:"))
         telegram_app.add_handler(CallbackQueryHandler(on_edit_cb, pattern=r"^edit:"))
         telegram_app.add_handler(MessageHandler(filters.PHOTO, on_photo))
@@ -665,7 +722,14 @@ def app_index():
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "storage": "mongo" if MONGO_URI else "sqlite", "provider": DATA_PROVIDER, "embed_frontend": EMBED_FRONTEND, "frontend_public_url": FRONTEND_PUBLIC_URL or None}
+    return {
+        "status": "ok",
+        "storage": SELECTED_STORAGE,
+        "provider": DATA_PROVIDER,
+        "embed_frontend": EMBED_FRONTEND,
+        "frontend_public_url": FRONTEND_PUBLIC_URL or None,
+        "mongo_candidates": str(len([*MONGO_URIS, *([MONGO_URI] if MONGO_URI else [])])),
+    }
 
 
 @app.get("/api/movies")

@@ -17,6 +17,7 @@ BOT_ADMIN_IDS=123456789,987654321
 FRONTEND_ORIGIN=*
 
 # optional
+MONGO_URIS=<uri1,uri2,...> # optional multi-Mongo failover list
 MONGO_URI=<mongodb uri>
 MONGO_DB_NAME=moviehub
 DATA_PROVIDER=api          # api or package
@@ -62,6 +63,7 @@ Movie becomes visible on website.
 - `/unpublish <special_id>` → hide from website (back to draft)
 - `/deletemovie <special_id>` → remove movie
 - `/listmovies` → list latest movies + statuses
+- `/dbstats` and `/stats` → database health + totals + status/lang distribution
 
 ---
 
@@ -87,8 +89,9 @@ Movie becomes visible on website.
 
 ## DB behavior
 
-- If `MONGO_URI` is set → uses MongoDB
-- Else → uses SQLite (`movies.db`)
+- If `MONGO_URIS` is set (comma-separated) → tries each MongoDB URI in order until one is reachable.
+- Else if `MONGO_URI` is set → uses that MongoDB URI.
+- Else → SQLite fallback.
 
 ---
 

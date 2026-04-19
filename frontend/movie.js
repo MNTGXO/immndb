@@ -9,6 +9,12 @@ const thumbSrc = (m) => {
   return m.thumbnail;
 };
 
+const safeTitle = (m) => {
+  const t = (m?.title || "").trim();
+  if (!t || /^tt\d{5,}$/i.test(t)) return "Untitled Movie";
+  return t;
+};
+
 function row(label, value) {
   if (!value || (Array.isArray(value) && !value.length)) return "";
   return `<p><span>${label}</span>${Array.isArray(value) ? value.join(", ") : value}</p>`;
@@ -34,9 +40,9 @@ async function load() {
   wrap.innerHTML = `
     <a href="/" class="back-link">← Back to Home</a>
     <section class="detail-card">
-      <img src="${thumbSrc(m)}" alt="${m.title || "Movie"}" />
+      <img src="${thumbSrc(m)}" alt="${safeTitle(m)}" />
       <div class="detail-main">
-        <h1>${m.title || "Untitled movie"}</h1>
+        <h1>${safeTitle(m)}</h1>
         <div class="meta-rows">
           ${row("Year", m.year)}
           ${row("Language", m.lang ? String(m.lang).toUpperCase() : "")}
