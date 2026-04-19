@@ -288,10 +288,11 @@ class SQLiteStore(Store):
         where = []
         params = []
         if not include_unpublished:
-            where.append("status != 'deleted'")
+            where.append("(status IS NULL OR status != 'deleted')")
         if search:
-            where.append("LOWER(title) LIKE ?")
-            params.append(f"%{search.lower()}%")
+            q = search.lower().strip()
+            where.append("(LOWER(title) LIKE ? OR LOWER(imdb_id) LIKE ?)")
+            params.extend([f"%{q}%", f"%{q}%"])
         if lang:
             where.append("LOWER(lang)=?")
             params.append(lang.lower())
@@ -347,7 +348,10 @@ class MongoStore(Store):
         if not include_unpublished:
             q["status"] = {"$ne": "deleted"}
         if search:
-            q["title"] = {"$regex": re.escape(search), "$options": "i"}
+            q["$or"] = [
+                {"title": {"$regex": re.escape(search), "$options": "i"}},
+                {"imdb_id": {"$regex": re.escape(search), "$options": "i"}},
+            ]
         if lang:
             q["lang"] = {"$regex": f"^{re.escape(lang)}$", "$options": "i"}
         total = self.col.count_documents(q)

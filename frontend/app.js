@@ -1,6 +1,7 @@
 const API_BASE = (window.APP_CONFIG?.API_BASE_URL || "").trim() || window.location.origin;
 const grid = document.getElementById("grid");
 const latestRail = document.getElementById("latestRail");
+const relatedRail = document.getElementById("relatedRail");
 const langBlocks = document.getElementById("langBlocks");
 const hero = document.getElementById("hero");
 const searchInput = document.getElementById("search");
@@ -36,7 +37,7 @@ function similarity(title, q) {
   if (!q) return 1;
   const t = normalize(title);
   if (!t) return 0;
-  if (t.includes(q)) return 3;
+  if (t.includes(q)) return 4;
   const qTokens = tokens(q);
   const hit = qTokens.filter((x) => t.includes(x)).length;
   return hit / Math.max(qTokens.length, 1);
@@ -103,32 +104,32 @@ function applyFilters() {
   const q = normalize(searchInput.value);
   const lang = langFilter.value;
   const year = yearFilter.value;
-  const filtered = allMovies
+  const scored = allMovies
     .filter((m) => !lang || (m.lang || "").toLowerCase() === lang)
     .filter((m) => !year || String(m.year || "") === String(year))
     .map((m) => ({ m, score: similarity(m.title, q) }))
-    .filter((x) => !q || x.score >= 0.6)
-    .sort((a, b) => b.score - a.score)
-    .map((x) => x.m);
+    .sort((a, b) => b.score - a.score);
+  const filtered = scored.filter((x) => !q || x.score >= 0.34).map((x) => x.m);
 
   countEl.textContent = `${filtered.length} titles`;
   grid.innerHTML = filtered.map((m) => card(m)).join("");
   latestRail.innerHTML = allMovies.slice(0, 18).map((m) => card(m, true)).join("");
+  relatedRail.innerHTML = q ? scored.slice(0, 18).map((x) => card(x.m, true)).join("") : allMovies.slice(0, 18).map((m) => card(m, true)).join("");
   renderLanguageBlocks(allMovies);
   attachCardClicks();
 }
 
 async function bootstrap() {
-  const [moviesRes, langRes] = await Promise.all([
-    fetch(`${API_BASE}/api/movies?page=1&page_size=200`),
-    fetch(`${API_BASE}/api/meta/languages`),
-  ]);
+  let moviesRes = await fetch(`${API_BASE}/api/movies?page=1&page_size=500`);
+  if (!moviesRes.ok) {
+    moviesRes = await fetch(`${API_BASE}/api/movies?page=1&page_size=500&include_unpublished=true`);
+  }
   if (!moviesRes.ok) throw new Error("Failed to load movies");
-
   const movieData = await moviesRes.json();
-  allMovies = (movieData.items || []).filter((m) => m.title);
+  allMovies = (movieData.items || []).map((m) => ({ ...m, title: safeTitle(m) }));
   renderHero(allMovies[0]);
 
+  const langRes = await fetch(`${API_BASE}/api/meta/languages`);
   if (langRes.ok) {
     const langs = (await langRes.json()).items || [];
     langFilter.innerHTML = '<option value="">All Languages</option>';
