@@ -742,7 +742,7 @@ def api_list_movies(
     lang: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(24, ge=1, le=100),
-    include_unpublished: bool = False,
+    include_unpublished: bool = True,
 ):
     total, items = STORE.list(search, lang, page, page_size, include_unpublished)
     return {"total": total, "page": page, "page_size": page_size, "items": items}

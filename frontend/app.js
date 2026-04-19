@@ -85,6 +85,7 @@ function renderHero(movie) {
 }
 
 function renderLanguageBlocks(movies) {
+  if (!langBlocks) return;
   const grouped = {};
   for (const m of movies) {
     const key = (m.lang || "Other").toUpperCase();
@@ -111,22 +112,34 @@ function applyFilters() {
     .sort((a, b) => b.score - a.score);
   const filtered = scored.filter((x) => !q || x.score >= 0.34).map((x) => x.m);
 
-  countEl.textContent = `${filtered.length} titles`;
-  grid.innerHTML = filtered.map((m) => card(m)).join("");
-  latestRail.innerHTML = allMovies.slice(0, 18).map((m) => card(m, true)).join("");
-  relatedRail.innerHTML = q ? scored.slice(0, 18).map((x) => card(x.m, true)).join("") : allMovies.slice(0, 18).map((m) => card(m, true)).join("");
+  if (countEl) countEl.textContent = `${filtered.length} titles`;
+  if (grid) grid.innerHTML = filtered.map((m) => card(m)).join("");
+  if (latestRail) latestRail.innerHTML = allMovies.slice(0, 18).map((m) => card(m, true)).join("");
+  if (relatedRail) relatedRail.innerHTML = q ? scored.slice(0, 18).map((x) => card(x.m, true)).join("") : allMovies.slice(0, 18).map((m) => card(m, true)).join("");
   renderLanguageBlocks(allMovies);
   attachCardClicks();
 }
 
 async function bootstrap() {
-  let moviesRes = await fetch(`${API_BASE}/api/movies?page=1&page_size=500`);
-  if (!moviesRes.ok) {
-    moviesRes = await fetch(`${API_BASE}/api/movies?page=1&page_size=500&include_unpublished=true`);
+  const urls = [
+    `${API_BASE}/api/movies?page=1&page_size=500`,
+    `${API_BASE}/api/movies?page=1&page_size=500&include_unpublished=true`,
+    `${API_BASE}/api/movies`,
+  ];
+  let movieData = null;
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      movieData = await res.json();
+      if (movieData) break;
+    } catch (_) {
+      // ignore and try fallback
+    }
   }
-  if (!moviesRes.ok) throw new Error("Failed to load movies");
-  const movieData = await moviesRes.json();
-  allMovies = (movieData.items || []).map((m) => ({ ...m, title: safeTitle(m) }));
+  if (!movieData) throw new Error("Failed to load movies");
+  const items = Array.isArray(movieData) ? movieData : (movieData.items || []);
+  allMovies = items.map((m) => ({ ...m, title: safeTitle(m) }));
   renderHero(allMovies[0]);
 
   const langRes = await fetch(`${API_BASE}/api/meta/languages`);
@@ -145,13 +158,17 @@ async function bootstrap() {
 }
 
 let t;
-searchInput.addEventListener("input", () => {
-  clearTimeout(t);
-  t = setTimeout(applyFilters, 120);
-});
-langFilter.addEventListener("change", applyFilters);
-yearFilter.addEventListener("change", applyFilters);
+if (searchInput) {
+  searchInput.addEventListener("input", () => {
+    clearTimeout(t);
+    t = setTimeout(applyFilters, 120);
+  });
+}
+if (langFilter) langFilter.addEventListener("change", applyFilters);
+if (yearFilter) yearFilter.addEventListener("change", applyFilters);
 
 bootstrap().catch((err) => {
-  grid.innerHTML = `<p class="error">${err.message}</p>`;
+  if (grid) {
+    grid.innerHTML = `<p class="error">${err.message}. Open /api/movies in browser to verify backend output.</p>`;
+  }
 });
